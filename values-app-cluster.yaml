@@ -1,0 +1,324 @@
+# Default values for kube-prometheus-stack.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+## Provide a name in place of kube-prometheus-stack for `app:` labels
+##
+nameOverride: "amprion-kube-prom-stack" #To-Check-AMPRION
+
+## Override the deployment namespace
+##
+namespaceOverride: "amprion-monitoring" #To-Check-AMPRION
+
+## Provide a k8s version to auto dashboard import script example: kubeTargetVersionOverride: 1.16.6
+##
+kubeTargetVersionOverride: "1.24.8" #To-Check-AMPRION
+
+## Allow kubeVersion to be overridden while creating the ingress
+##
+kubeVersionOverride: "1.24.8" #To-Check-AMPRION
+
+## Provide a name to substitute for the full names of resources
+##
+fullnameOverride: "amprion-monitoring" #To-Check-AMPRION
+
+## Labels to apply to all resources
+##
+commonLabels: {} #To-Check-AMPRION
+# scmhash: abc123
+# myLabel: aakkmd
+
+##
+global:
+  ## Global image registry to use if it needs to be overriden for some specific use cases (e.g local registries, custom images, ...)
+  ##
+  imageRegistry: "docker.amp-cloud-p-reg.amp-cloud.lan" #To-Check-AMPRION
+
+## Configuration for alertmanager
+## ref: https://prometheus.io/docs/alerting/alertmanager/
+##
+alertmanager:
+  podDisruptionBudget:  #To-Check-AMPRION
+    enabled: false
+    minAvailable: 1
+    maxUnavailable: ""
+
+  ## Alertmanager configuration directives
+  ## ref: https://prometheus.io/docs/alerting/configuration/#configuration-file
+  ##      https://prometheus.io/webtools/alerting/routing-tree-editor/
+  ##
+  config:
+    global:
+      resolve_timeout: 5m #To-Check-AMPRION
+    inhibit_rules: #To-Check-AMPRION
+      - source_matchers:
+          - 'severity = critical'
+        target_matchers:
+          - 'severity =~ warning|info'
+        equal:
+          - 'namespace'
+          - 'alertname'
+      - source_matchers:
+          - 'severity = warning'
+        target_matchers:
+          - 'severity = info'
+        equal:
+          - 'namespace'
+          - 'alertname'
+      - source_matchers:
+          - 'alertname = InfoInhibitor'
+        target_matchers:
+          - 'severity = info'
+        equal:
+          - 'namespace'
+ #To-Check-AMPRION https://fabianlee.org/2022/07/03/prometheus-external-template-for-alertmanager-html-email-with-kube-prometheus-stack/
+    route:
+      group_by: ['namespace']
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 12h
+      receiver: 'null'
+    #  receiver: email_platform #To-Check-AMPRION 
+      routes:
+      - receiver: 'null'
+        matchers:
+          - alertname =~ "InfoInhibitor|Watchdog"
+      #- receiver: email_platform #To-Check-AMPRION
+      #  matchers:
+      #    - alertname =~ "InfoInhibitor|Watchdog"
+      #- receiver: email_platform #To-Check-AMPRION
+      #  continue: true
+    receivers: #To-Check-AMPRION 
+    - name: 'null'
+    #- name: email_platform
+    #  # override subject line and html content 
+    #  email_configs:
+    #  - to: platform@amprion
+    #    send_resolved: true
+    #    headers:
+    #      subject: "{{ .Status | toUpper }} {{ .CommonLabels.env }}:{{ .CommonLabels.cluster }} {{ .CommonLabels.alertname }}"
+    #    # refers to named template evaluated by AlertManager at runtime
+    #    html: '{{ template "emaildefaulthtml" . }}'
+    #    text: '{{ template "emaildefaulttext" . }}'
+
+  ## Settings affecting alertmanagerSpec
+  ## ref: https://github.com/prometheus-operator/prometheus-operator/blob/main/Documentation/api.md#alertmanagerspec
+  ##
+  alertmanagerSpec:
+    ## Image of Alertmanager
+    ##
+    image:
+      registry: docker.amp-cloud-p-reg.amp-cloud.lan #To-Check-AMPRION
+      repository: prometheus/alertmanager
+
+    ## Size is the expected size of the alertmanager cluster. The controller will eventually make the size of the
+    ## running cluster equal to the expected size.
+    replicas: 1 #To-Check-AMPRION
+
+    ## Time duration Alertmanager shall retain data for. Default is '120h', and must match the regular expression
+    ## [0-9]+(ms|s|m|h) (milliseconds seconds minutes hours).
+    ##
+    retention: 120h #To-Check-AMPRION
+
+    ## Define resources requests and limits for single Pods.
+    ## ref: https://kubernetes.io/docs/user-guide/compute-resources/
+    ##
+    resources: {} #To-Check-AMPRION
+    # requests:
+    #   memory: 400Mi
+
+## Using default values from https://github.com/grafana/helm-charts/blob/main/charts/grafana/values.yaml
+##
+grafana:
+  image:
+    repository: docker.amp-cloud-p-reg.amp-cloud.lan/grafana/grafana #To-Check-AMPRION
+  downloadDashboardsImage:
+    repository: docker.amp-cloud-p-reg.amp-cloud.lan/curlimages/curl #To-Check-AMPRION 
+  initChownData:
+    image:
+      repository: docker.amp-cloud-p-reg.amp-cloud.lan/busybox #To-Check-AMPRION 
+
+  adminPassword: prom-operator #To-Check-AMPRION
+
+  ingress: #To-Check-AMPRION
+    enabled: true
+
+    ## Hostnames.
+    ## Must be provided if Ingress is enable.
+    ##
+    # hosts:
+    #   - grafana.domain.com
+    hosts: 
+      - grafana.generic.com
+
+    ## Path for grafana ingress
+    path: /
+
+    ## TLS configuration for grafana Ingress
+    ## Secret must be manually created in the namespace
+    ##
+    tls: []
+    # - secretName: grafana-general-tls
+    #   hosts:
+    #   - grafana.example.com
+
+  sidecar:
+    image:
+        repository: docker.amp-cloud-p-reg.amp-cloud.lan/kiwigrid/k8s-sidecar #To-Check-AMPRION
+
+
+## Configuration for kube-state-metrics subchart
+##
+kube-state-metrics:
+  image:
+    repository: kube-state-metrics/kube-state-metrics #To-Check-AMPRION
+  kubeRBACProxy:
+      image:
+        repository: brancz/kube-rbac-proxy #To-Check-AMPRION
+
+## Configuration for prometheus-node-exporter subchart
+##
+prometheus-node-exporter:
+  image:
+    repository: prometheus/node-exporter #To-Check-AMPRION
+
+## Manages Prometheus and Alertmanager components
+##
+prometheusOperator:
+  ## Admission webhook support for PrometheusRules resources added in Prometheus Operator 0.30 can be enabled to prevent incorrectly formatted
+  ## rules from making their way into prometheus and potentially preventing the container from starting
+  admissionWebhooks:
+    patch:
+      image:
+        registry: docker.amp-cloud-p-reg.amp-cloud.lan #To-Check-AMPRION
+        repository: ingress-nginx/kube-webhook-certgen
+
+  ## Resource limits & requests
+  ##
+  resources: {} #To-Check-AMPRION
+  # limits:
+  #   cpu: 200m
+  #   memory: 200Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 100Mi
+
+  ## Prometheus-operator image
+  ##
+  image:
+    registry:  docker.amp-cloud-p-reg.amp-cloud.lan #To-Check-AMPRION
+    repository: prometheus-operator/prometheus-operator
+
+  ## Prometheus image to use for prometheuses managed by the operator
+  ##
+  # prometheusDefaultBaseImage: prometheus/prometheus
+
+  ## Prometheus image registry to use for prometheuses managed by the operator
+  ##
+  # prometheusDefaultBaseImageRegistry: quay.io
+
+  ## Alertmanager image to use for alertmanagers managed by the operator
+  ##
+  # alertmanagerDefaultBaseImage: prometheus/alertmanager
+
+  ## Alertmanager image registry to use for alertmanagers managed by the operator
+  ##
+  # alertmanagerDefaultBaseImageRegistry: quay.io
+
+  ## Prometheus-config-reloader
+  ##
+  prometheusConfigReloader:
+    image:
+      registry:  docker.amp-cloud-p-reg.amp-cloud.lan #To-Check-AMPRION
+      repository: prometheus-operator/prometheus-config-reloader
+
+    # resource config for prometheusConfigReloader
+    resources: #To-Check-AMPRION
+      requests:
+        cpu: 200m
+        memory: 50Mi
+      limits:
+        cpu: 200m
+        memory: 50Mi
+
+  ## Thanos side-car image when configured
+  ##
+  thanosImage:
+    registry:  docker.amp-cloud-p-reg.amp-cloud.lan #To-Check-AMPRION
+    repository: thanos/thanos
+    tag: v0.30.2
+    sha: ""
+
+
+## Deploy a Prometheus instance
+##
+prometheus:
+
+  ## Configure pod disruption budgets for Prometheus
+  ## ref: https://kubernetes.io/docs/tasks/run-application/configure-pdb/#specifying-a-poddisruptionbudget
+  ## This configuration is immutable once created and will require the PDB to be deleted to be changed
+  ## https://github.com/kubernetes/kubernetes/issues/45398
+  ##
+  podDisruptionBudget: #To-Check-AMPRION
+    enabled: false
+    minAvailable: 1
+    maxUnavailable: ""
+
+  ingress: #To-Check-AMPRION
+    enabled: true
+
+    ## Hostnames.
+    ## Must be provided if Ingress is enabled.
+    ##
+    # hosts:
+    #   - prometheus.domain.com
+    #hosts: []
+    hosts:
+      - prom1.generic.com
+
+
+    ## Paths to use for ingress rules - one path should match the prometheusSpec.routePrefix
+    ##
+    paths: []
+    # - /
+
+    ## For Kubernetes >= 1.18 you should specify the pathType (determines how Ingress paths should be matched)
+    ## See https://kubernetes.io/blog/2020/04/02/improvements-to-the-ingress-api-in-kubernetes-1.18/#better-path-matching-with-path-types
+    # pathType: ImplementationSpecific
+
+    ## TLS configuration for Prometheus Ingress
+    ## Secret must be manually created in the namespace
+    ##
+    tls: []
+      # - secretName: prometheus-general-tls
+      #   hosts:
+      #     - prometheus.example.com
+
+  ## Settings affecting prometheusSpec
+  ## ref: https://github.com/prometheus-operator/prometheus-operator/blob/main/Documentation/api.md#prometheusspec
+  ##
+  prometheusSpec:
+    ## Image of Prometheus.
+    ##
+    image:
+      registry:  docker.amp-cloud-p-reg.amp-cloud.lan #To-Check-AMPRION
+      repository: prometheus/prometheus
+
+    ## How long to retain metrics
+    ##
+    retention: 30d #To-Check-AMPRION
+
+    ## Maximum size of metrics
+    ##
+    retentionSize: "" #To-Check-AMPRION
+
+    ## Number of replicas of each shard to deploy for a Prometheus deployment.
+    ## Number of replicas multiplied by shards is the total number of Pods created.
+    ##
+    replicas: 2 #To-Check-AMPRION
+
+    ## Resource limits & requests
+    ##
+    resources: {} #To-Check-AMPRION
+    # requests:
+    #   memory: 400Mi
